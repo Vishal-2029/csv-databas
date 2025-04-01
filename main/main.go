@@ -63,9 +63,11 @@ func main() {
 		log.Fatal("Failed to read CSV file:", err)
 	}
 
-	limit := 10000
-	count := 0
-	batch := 100
+	batchSize := 1000 // Number of records per batch
+	var values []string
+	var args []interface{}
+	insertQuery := "INSERT INTO tenmil (Number, Domain, PageNumber) VALUES "
+
 	for i, row := range data {
 		if i == 0 {
 			continue
@@ -90,19 +92,24 @@ func main() {
 			continue
 		}
 
-		_, err = db.Exec(`INSERT INTO tenmil (Number, Domain, PageNumber) VALUES (?, ?, ?)`, Number, row[1], PageNumber)
-		if err != nil {
-			log.Println("Failed to insert record:", err)
+		values = append(values, "(?, ?, ?)")
+		args = append(args, Number, row[1], PageNumber)
+
+		if len(values) >= batchSize {
+			fullQuery := insertQuery + strings.Join(values, ",")
+			_, err := db.Exec(fullQuery, args...)
+			if err != nil {
+				log.Println("Failed to execute batch insert:", err)
+			}
+
+			values = nil
+			args = nil
 		}
 
-		count++
-		if count >= limit {
-			fmt.Println("Reached limit of 1000000 records. Stopping insertion.")
-			break 
-		}
+		
 	}
 
-	fmt.Println("Finished processing", )
+	fmt.Println("Finished processing")
 	fmt.Printf("Start Time: %s\n", startTime.Format(time.TimeOnly))
 
 	endtime := time.Now()
